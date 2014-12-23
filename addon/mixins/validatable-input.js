@@ -86,7 +86,7 @@ export default Ember.Mixin.create({
    * @returns {void}
    */
   attachValidationListener: function() {
-    Ember.$(this.get('element')).on('invalid change', Ember.run.bind(this, this.validate));
+    Ember.$(this.get('element')).on('invalid change focusout', Ember.run.bind(this, this.validate));
   }.on('didInsertElement'),
 
   /**
