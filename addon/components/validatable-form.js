@@ -32,8 +32,17 @@ export default Ember.Component.extend({
    */
   submit: function() {
     var form = this.get('element');
+    var allValidElements = true;
 
-    if (form.checkValidity()) {
+    if(form.checkValidity()) {
+      // manually verify, because checkValidity() returns always true in samsung android 4.4.2 version
+      $('form input, form select, form textarea').each(function(){
+        allValidElements = this.validity.valid;
+        if(!allValidElements) { return false; }
+      });
+    }
+
+    if (form.checkValidity() && allValidElements) {
       this.sendAction('action', this.get('model'));
     } else {
       this.scrollToFirstError();
