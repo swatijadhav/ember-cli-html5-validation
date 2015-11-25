@@ -97,13 +97,20 @@ export default Ember.Mixin.create({
   }.on('willDestroyElement'),
 
   /**
+   * @returns {String}
+   */
+  inputTagName: function() {
+    return this.get('element').tagName.toLowerCase();
+  }.property(),
+
+  /**
    * Validate the input whenever it looses focus
    *
    * @returns {void}
    */
   validate: function() {
     var input = this.get('element'),
-        jQueryElement = Ember.$(input);
+      jQueryElement = Ember.$(input);
 
     // According to spec, inputs that have "formnovalidate" should bypass any validation
     if (input.hasAttribute('formnovalidate')) {
@@ -112,7 +119,7 @@ export default Ember.Mixin.create({
 
     // Textareas do not support "pattern" attribute. As a consequence, if you set a "required" attribute
     // and only add blank spaces or new lines, then it is considered as valid (although it makes little sense).
-    if(input.tagName.toLowerCase() === 'textarea' && input.hasAttribute('required')) {
+    if(this.get('inputTagName') === 'textarea' && input.hasAttribute('required')) {
       var content = Ember.$.trim(jQueryElement.val());
 
       if(content.length === 0) {
@@ -120,32 +127,22 @@ export default Ember.Mixin.create({
       }
     }
 
-    if (!input.validity.valid && !input.validity.customError) {
+    if (!input.validity.valid) {
       this.set('errorMessage', this.getErrorMessage());
     } else {
       this.set('errorMessage', null);
-      input.setCustomValidity('');
     }
+
+    // We reset the state if we had any custom error, so that they do not "stick" around
+    input.setCustomValidity('');
 
     // If the input was never validated, we attach an additional listener so that validation is
     // run also on keyup. This makes the UX better as it removes error message as you type when
     // you try to fix the errors
     if (!this.get('wasValidated')) {
-      jQueryElement.on('keyup', Ember.run.bind(this, this.validate));
+      jQueryElement.off('focusout').on('keyup', Ember.run.bind(this, this.validate));
       this.set('wasValidated', true);
     }
-  },
-
-  /**
-   * Set a custom error message for the input. Note that we set the error message directly, as well as we
-   * set the error using setCustomValidity, so that a call to checkValidate evaluate to false
-   *
-   * @type {string} error
-   * @returns {void}
-   */
-  setCustomErrorMessage: function(error) {
-    this.set('errorMessage', error);
-    this.get('element').setCustomValidity(error);
   },
 
   /**
@@ -155,8 +152,8 @@ export default Ember.Mixin.create({
    */
   renderErrorMessage: function() {
     var element = this.$(),
-        parent = element.parent(),
-        errorMessage = this.get('errorMessage');
+      parent = element.parent(),
+      errorMessage = this.get('errorMessage');
 
     if (null === errorMessage) {
       parent.removeClass('has-error');
@@ -164,7 +161,7 @@ export default Ember.Mixin.create({
     } else {
       parent.addClass('has-error');
       element.next('.input-error').remove();
-      element.after('<p class="input-error" role="alert">' + errorMessage + '</p>');
+      element.after('<label class="input-error" role="alert" for="' + element.attr('id') + '">' + errorMessage + '</label>');
     }
   }.observes('errorMessage'),
 
@@ -176,19 +173,20 @@ export default Ember.Mixin.create({
   getErrorMessage: function() {
     var target = this.get('element');
 
-    // If user want to use native browser error messages, we directly return
-    if (this.get('useBrowserMessages')) {
+    // If user want to use native browser error messages, we directly return. We also return the stored
+    // message in case of custom error
+    if (this.get('useBrowserMessages') || target.validity.customError) {
       return target.validationMessage;
     }
 
     var errorTemplates = this.get('errorTemplates'),
-        type = target.getAttribute('type');
+      type = target.getAttribute('type');
 
     // We first check for the "required" case
     if (target.validity.valueMissing) {
       // For checkbox, we allow to have a title attribute that is shown instead of the
       // required message. Very useful for things like "You must accept our terms"
-      if (type === 'checkbox' && target.hasAttribute('title')) {
+      if (target.hasAttribute('title')) {
         return target.getAttribute('title');
       }
 

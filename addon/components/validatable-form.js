@@ -31,11 +31,10 @@ export default Ember.Component.extend({
    * @returns {boolean}
    */
   submit: function() {
-    var form = this.get('element'),
-        model = this.get('model');
+    var form = this.get('element');
 
-    if (form.checkValidity() && this.get('model.isValid') !== false) {
-      this.sendAction('action', model);
+    if (form.checkValidity()) {
+      this.sendAction('action', this.get('model'));
     } else {
       this.scrollToFirstError();
     }
@@ -67,25 +66,41 @@ export default Ember.Component.extend({
    * @returns {void}
    */
   extractServerErrors: function() {
-    var errors = this.get('model.errors'),
-        childViews = this.get('childViews');
+    var errors = this.get('model.errors');
 
-    // This thing can be pretty inefficient if you have lot of form elements... we need to find
-    // a better way!
+    // For now, we assume that there are "id" properly set and that they match the attribute name
     errors.forEach(function(item) {
-      var attribute = Ember.String.dasherize(item.attribute),
-        childViewLength = childViews.get('length');
+      this.renderServerError(item.attribute, item.message);
+    }, this);
 
-      for (var i = 0 ; i !== childViewLength ; ++i) {
-        if (attribute === childViews[i].get('elementId')) {
-          childViews[i].setCustomErrorMessage(item.message);
-          break;
+    // Force validation of the form
+    this.scrollToFirstError();
+    this.get('element').checkValidity();
+  }.observes('model.errors.[]'),
+
+  /**
+   * @param {String} item
+   * @param {String|Object} message
+   */
+  renderServerError: function(item, message) {
+    var attribute = Ember.String.dasherize(item),
+        messageType = Ember.typeOf(message);
+
+    // If message is itself an object, this means it is a nested error
+    if (messageType === 'object') {
+      for (var key in message) {
+        if (message.hasOwnProperty(key)) {
+          this.renderServerError(item + '.' + key, message[key]);
         }
       }
-    });
+    } else {
+      var element = Ember.$.find('#' + attribute.replace(/(:|\.|\[|\]|,)/g, '\\$1'));
 
-    this.scrollToFirstError();
-  }.observes('model.errors.length'),
+      if (element.length > 0) {
+        element[0].setCustomValidity(messageType === 'array' ? message[0] : message);
+      }
+    }
+  },
 
   /**
    * Scroll to the first input field that does not pass the validation
